@@ -221,7 +221,7 @@ def test_end_to_end_size_and_progress(tmp_path):
     assert out.exists() and out.stat().st_size > 0
     assert ticks and ticks[0][1].startswith("Pass 1")
     assert any(t[1].startswith("Pass 2") for t in ticks)
-    assert ticks[-1][0] >= 98
+    assert ticks[-1][0] >= 95  # final -progress tick can stop at the last frame's timestamp
 
 
 # ------------------------------------------------------ ffmpeg absence -----

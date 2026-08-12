@@ -14,8 +14,8 @@ all built on ffmpeg, with zero Python dependencies for the core.
 ## Install
 
 ```bash
-pip install .                # CLI + desktop GUI
-pip install '.[web]'         # + local web UI (Flask)
+pip install 'scales-video-compressor[web]'   # from PyPI (includes the web UI)
+pip install .                                # from source: CLI + desktop GUI
 ```
 
 This gives you a global `video-compressor` command. You can also run it

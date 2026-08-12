@@ -45,7 +45,7 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: |
           pip install twine
-          twine upload dist/*
+          twine upload --verbose dist/*
       - name: Publish to PyPI (trusted publishing)
         if: env.HAS_PYPI_TOKEN == ''
         uses: pypa/gh-action-pypi-publish@release/v1

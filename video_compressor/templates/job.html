@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Compressing… — Video Compressor</title>
+  <style>
+    :root { --bg:#0f1115; --panel:#171a21; --border:#262b36; --text:#e6e8ee;
+            --muted:#8b93a5; --accent:#4f7cff; --accent2:#2dd4bf; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+           background:radial-gradient(1200px 600px at 70% -10%, #1a2030 0%, var(--bg) 55%);
+           color:var(--text); min-height:100vh; }
+    main { max-width:560px; margin:0 auto; padding:56px 24px 80px; }
+    h1 { font-size:24px; letter-spacing:-0.4px; margin:0 0 22px; }
+    .card { background:var(--panel); border:1px solid var(--border); border-radius:16px;
+            padding:30px 26px; text-align:center; }
+    .bar { height:10px; border-radius:999px; background:#10131a; border:1px solid var(--border);
+           overflow:hidden; margin:18px 0 10px; }
+    .bar > div { height:100%; width:0; border-radius:999px;
+           background:linear-gradient(90deg, var(--accent), var(--accent2)); transition:width .5s; }
+    #pct { color:var(--accent2); font-weight:700; font-size:15px; }
+    #msg { color:var(--muted); font-size:14px; min-height:20px; }
+    .meta { display:flex; gap:22px; justify-content:center; margin-top:18px; color:var(--muted); font-size:13px; }
+    .meta b { color:var(--text); font-weight:600; }
+    a.btn { display:inline-block; margin-top:22px; padding:12px 22px; border-radius:10px; text-decoration:none;
+            background:linear-gradient(90deg, var(--accent), #6d8bff); color:#fff; font-weight:600; }
+    a.back { display:inline-block; margin-top:14px; color:var(--muted); font-size:14px; text-decoration:none; }
+    a.back:hover { color:var(--text); }
+    .hidden { display:none; }
+    #err { background:#2a1416; border:1px solid #5a2529; color:#ff9a9a; border-radius:10px;
+           padding:12px 14px; font-size:14px; margin-top:16px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Video Compressor</h1>
+  <div class="card">
+    <div id="working">
+      <div id="pct">0%</div>
+      <div class="bar"><div id="fill"></div></div>
+      <div id="msg">Starting…</div>
+    </div>
+
+    <div id="donebox" class="hidden">
+      <div style="font-size:40px">🎉</div>
+      <h2 style="margin:10px 0 4px">Done!</h2>
+      <div class="meta">
+        <div>Size <b id="m-size">—</b> MiB</div>
+        <div>Resolution <b id="m-res">—</b></div>
+        <div>Duration <b id="m-dur">—</b>s</div>
+        <div>Saved <b id="m-save">—</b>%</div>
+      </div>
+      <a class="btn" id="download" href="#">Download compressed video</a>
+      <br><a class="back" href="{{ url_for('index') }}">Compress another</a>
+    </div>
+
+    <div id="errbox" class="hidden">
+      <h2 style="margin:0 0 8px">Something went wrong</h2>
+      <div id="err"></div>
+      <br><a class="back" href="{{ url_for('index') }}">← Back</a>
+    </div>
+  </div>
+</main>
+
+<script>
+  const id = '{{ job_id }}';
+  const poll = () => fetch('/status/' + id).then(r => r.json()).then(update).catch(() => setTimeout(poll, 1200));
+  const set = (sel, txt) => { const el = document.querySelector(sel); if (el) el.textContent = txt; };
+
+  function update(job) {
+    if (job.status === 'processing') {
+      const pct = Math.round(job.progress || 0);
+      document.getElementById('fill').style.width = pct + '%';
+      set('#pct', pct + '%');
+      set('#msg', job.message || 'Encoding…');
+      setTimeout(poll, 700);
+    } else if (job.status === 'done') {
+      document.getElementById('working').className = 'hidden';
+      document.getElementById('donebox').classList.remove('hidden');
+      const i = job.info || {};
+      set('#m-size', i.size_mb);
+      set('#m-res', (i.width && i.height) ? i.width + '×' + i.height : '—');
+      set('#m-dur', i.duration);
+      set('#m-save', i.reduction);
+      document.getElementById('download').href = '/download/' + id;
+    } else {
+      document.getElementById('working').className = 'hidden';
+      document.getElementById('errbox').classList.remove('hidden');
+      set('#err', job.message || 'Unknown error.');
+    }
+  }
+  poll();
+</script>
+</body>
+</html>

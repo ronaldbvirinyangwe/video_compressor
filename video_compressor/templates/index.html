@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Video Compressor</title>
+  <style>
+    :root { --bg:#0f1115; --panel:#171a21; --border:#262b36; --text:#e6e8ee;
+            --muted:#8b93a5; --accent:#4f7cff; --accent2:#2dd4bf; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+           background: radial-gradient(1200px 600px at 70% -10%, #1a2030 0%, var(--bg) 55%);
+           color:var(--text); min-height:100vh; }
+    main { max-width:620px; margin:0 auto; padding:56px 24px 80px; }
+    h1 { font-size:30px; letter-spacing:-0.5px; margin:0 0 6px; }
+    p.sub { color:var(--muted); margin:0 0 34px; font-size:15px; }
+    .card { background:var(--panel); border:1px solid var(--border); border-radius:16px; padding:26px; }
+    .drop { border:2px dashed var(--border); border-radius:12px; padding:38px 20px; text-align:center;
+            cursor:pointer; transition:border-color .15s, background .15s; }
+    .drop:hover, .drop.dragover { border-color:var(--accent); background:#141924; }
+    .drop .big { font-weight:600; } .drop .hint { color:var(--muted); font-size:13px; margin-top:6px; }
+    #file { display:none; }
+    #chosen { display:none; margin-top:14px; color:var(--text); font-size:14px; word-break:break-all;
+              background:#10131a; border:1px solid var(--border); border-radius:8px; padding:10px 12px; }
+    fieldset { border:1px solid var(--border); border-radius:12px; margin:18px 0 0; padding:14px 16px; }
+    legend { color:var(--muted); font-size:13px; padding:0 6px; }
+    .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    label.tile { flex:1; min-width:170px; border:1px solid var(--border); border-radius:10px;
+                 padding:10px 12px; cursor:pointer; font-size:14px; }
+    label.tile input { accent-color:var(--accent); margin-right:8px; }
+    input[type=number], select { background:#10131a; color:var(--text); border:1px solid var(--border);
+                 border-radius:8px; padding:8px 10px; font-size:14px; }
+    select { cursor:pointer; }
+    .row-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px,1fr)); gap:12px; margin-top:12px; }
+    .field label { display:block; color:var(--muted); font-size:12px; margin-bottom:4px; }
+    .range-wrap { display:flex; align-items:center; gap:10px; }
+    input[type=range] { flex:1; accent-color:var(--accent); }
+    #crf-val { min-width:28px; text-align:right; color:var(--accent2); font-weight:600; }
+    button[type=submit] { width:100%; margin-top:20px; padding:13px; border:0; border-radius:10px;
+            background:linear-gradient(90deg, var(--accent), #6d8bff); color:#fff; font-size:15px;
+            font-weight:600; cursor:pointer; }
+    button[type=submit]:hover { filter:brightness(1.08); }
+    button[type=submit]:disabled { opacity:.45; cursor:not-allowed; }
+    .foot { margin-top:22px; color:var(--muted); font-size:12.5px; text-align:center; }
+    .badge { display:inline-block; background:#1d2330; border:1px solid var(--border); color:var(--muted);
+             border-radius:999px; padding:3px 10px; font-size:12px; margin-left:10px; vertical-align:middle; }
+    .err { background:#2a1416; border:1px solid #5a2529; color:#ff9a9a; border-radius:10px;
+           padding:10px 12px; font-size:14px; margin-top:14px; display:none; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>Video Compressor <span class="badge">runs 100% locally</span></h1>
+  <p class="sub">Drop a video, pick a target size or quality, and download the result. Your files never leave this machine.</p>
+
+  <form class="card" id="form" method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data">
+    <input type="file" id="file" name="video" accept="video/*">
+    <div class="drop" id="drop">
+      <div class="big">Drag &amp; drop a video here</div>
+      <div class="hint">or click to browse — mp4, mov, mkv, webm, avi…</div>
+    </div>
+    <div id="chosen"></div>
+    <div class="err" id="err"></div>
+
+    <fieldset>
+      <legend>Mode</legend>
+      <div class="row">
+        <label class="tile"><input type="radio" name="mode" value="size" checked> Target file size</label>
+        <label class="tile"><input type="radio" name="mode" value="crf"> Target quality (CRF)</label>
+      </div>
+      <div class="row-grid" id="size-fields">
+        <div class="field"><label for="size_mb">Size (MiB)</label>
+          <input type="number" id="size_mb" name="size_mb" min="1" max="20000" step="1" value="64"></div>
+        <div class="field"><label>Size accuracy</label><div style="color:var(--muted);font-size:12.5px">Within ~2% with software encoder (2-pass)</div></div>
+      </div>
+      <div class="row-grid" id="crf-fields" style="display:none">
+        <div class="field" style="grid-column:1/-1"><label>CRF — lower is better, higher is smaller</label>
+          <div class="range-wrap"><input type="range" id="crf" name="crf" min="12" max="32" value="23"><span id="crf-val">23</span></div></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Encoding</legend>
+      <div class="row-grid">
+        <div class="field"><label for="preset">Speed / compression</label>
+          <select id="preset" name="preset">
+            {% for p in presets %}<option value="{{ p }}" {% if p == 'medium' %}selected{% endif %}>{{ p }}</option>{% endfor %}
+          </select></div>
+        <div class="field"><label for="audio_kbps">Audio bitrate (kbps)</label>
+          <select id="audio_kbps" name="audio_kbps">
+            {% for a in [96,128,160,192,256,320] %}<option value="{{ a }}" {% if a == 128 %}selected{% endif %}>{{ a }}</option>{% endfor %}
+          </select></div>
+        <div class="field"><label for="encoder">Encoder</label>
+          <select id="encoder" name="encoder">
+            {% for key, label in encoders.items() %}<option value="{{ key }}" {% if key == 'software' %}selected{% endif %}>{{ label }}</option>{% endfor %}
+          </select></div>
+      </div>
+    </fieldset>
+
+    <button type="submit" id="go" disabled>Compress</button>
+  </form>
+
+  <p class="foot">Powered by ffmpeg · `video-compressor web`</p>
+</main>
+
+<script>
+  const drop = document.getElementById('drop');
+  const fileInput = document.getElementById('file');
+  const chosen = document.getElementById('chosen');
+  const err = document.getElementById('err');
+  const go = document.getElementById('go');
+  const form = document.getElementById('form');
+  const sizeFields = document.getElementById('size-fields');
+  const crfFields = document.getElementById('crf-fields');
+  const crfRange = document.getElementById('crf');
+  const crfVal = document.getElementById('crf-val');
+
+  window.setFile = (file) => {
+    chosen.style.display = 'block';
+    chosen.textContent = file.name + '  ·  ' + (file.size/1048576).toFixed(1) + ' MiB';
+    err.style.display = 'none';
+    go.disabled = !file;
+  };
+  drop.addEventListener('click', () => fileInput.click());
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.classList.add('dragover'); });
+  drop.addEventListener('dragleave', () => drop.classList.remove('dragover'));
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault(); drop.classList.remove('dragover');
+    window.setFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', () => window.setFile(fileInput.files[0]));
+  crfRange.addEventListener('input', () => crfVal.textContent = crfRange.value);
+
+  document.querySelectorAll('input[name=mode]').forEach(r => r.addEventListener('change', () => {
+    const size = document.querySelector('input[name=mode]:checked').value === 'size';
+    sizeFields.style.display = size ? 'grid' : 'none';
+    crfFields.style.display = size ? 'none' : 'grid';
+  }));
+
+  form.addEventListener('submit', (e) => {
+    if (!fileInput.files.length) { e.preventDefault(); err.textContent = 'Pick a video first.'; err.style.display='block'; }
+    else { go.disabled = true; go.textContent = 'Compressing…'; }
+  });
+</script>
+</body>
+</html>

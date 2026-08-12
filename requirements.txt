@@ -1,0 +1,2 @@
+# No Python dependencies. The tool shells out to ffmpeg/ffprobe, which must be
+# installed on the system: https://ffmpeg.org/download.html

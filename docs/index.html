@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Video Compressor — shrink videos to a target size or quality</title>
+  <meta name="description" content="Compress videos to an exact file size (2-pass x264) or a target quality (CRF). CLI, desktop GUI and local web UI, powered by ffmpeg.">
+  <style>
+    :root { --bg:#0f1115; --panel:#171a21; --border:#262b36; --text:#e6e8ee;
+            --muted:#8b93a5; --accent:#4f7cff; --accent2:#2dd4bf; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+           background:radial-gradient(1200px 600px at 70% -10%, #1a2030 0%, var(--bg) 55%);
+           color:var(--text); line-height:1.55; }
+    header, main, footer { max-width:880px; margin:0 auto; padding:0 24px; }
+    header { padding:72px 24px 40px; text-align:center; }
+    h1 { font-size:46px; letter-spacing:-1px; margin:0 0 14px; }
+    .tag { color:var(--muted); font-size:18px; max-width:640px; margin:0 auto; }
+    .cta { margin-top:28px; display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
+    .btn { display:inline-block; padding:12px 22px; border-radius:10px; text-decoration:none; font-weight:600; }
+    .btn.primary { background:linear-gradient(90deg, var(--accent), #6d8bff); color:#fff; }
+    .btn.ghost { border:1px solid var(--border); color:var(--text); }
+    .btn:hover { filter:brightness(1.08); }
+    .code { background:#0c0e13; border:1px solid var(--border); border-radius:10px; padding:16px 18px;
+            font-family:ui-monospace, "SF Mono", Consolas, monospace; font-size:13.5px; color:#c9d4f0;
+            overflow-x:auto; margin:12px 0; text-align:left; }
+    main { padding-bottom:20px; }
+    h2 { font-size:22px; margin-top:52px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(240px,1fr)); gap:16px; margin-top:18px; }
+    .card { background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:20px; }
+    .card h3 { margin:0 0 8px; font-size:17px; }
+    .card p { margin:0; color:var(--muted); font-size:14px; }
+    .card code { color:var(--accent2); font-size:13px; }
+    table { border-collapse:collapse; width:100%; margin-top:14px; font-size:14px; }
+    th, td { text-align:left; padding:9px 12px; border-bottom:1px solid var(--border); }
+    th { color:var(--muted); font-weight:600; }
+    td code { color:var(--accent2); font-size:13px; }
+    footer { padding:50px 24px 70px; color:var(--muted); font-size:13px; text-align:center; }
+    a { color:var(--accent2); }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Video Compressor</h1>
+  <p class="tag">Shrink any video to an <strong>exact file size</strong> or a <strong>target quality</strong>.
+    CLI, desktop GUI, and a local web app. Powered by ffmpeg, zero Python dependencies.</p>
+  <div class="cta">
+    <a class="btn primary" href="#install">Install</a>
+    <a class="btn ghost" href="#usage">Usage</a>
+    <a class="btn ghost" href="https://github.com/ronaldbvirinyangwe/video_compressor">GitHub</a>
+  </div>
+</header>
+
+<main>
+  <h2 id="features">Why it's different</h2>
+  <div class="grid">
+    <div class="card"><h3>Exact-size 2-pass encode</h3><p>Software mode runs two-pass x264 so the result lands within ~2% of the MiB target you ask for.</p></div>
+    <div class="card"><h3>Hardware acceleration</h3><p>Optional <code>NVENC</code>, <code>VAAPI</code> and <code>VideoToolbox</code> single-pass encoding when you want speed over precision.</p></div>
+    <div class="card"><h3>Three interfaces</h3><p>A scriptable <code>CLI</code>, a native <code>tkinter GUI</code>, and a browser <code>web UI</code> that never uploads your files anywhere.</p></div>
+    <div class="card"><h3>Web-ready output</h3><p>H.264/AAC MP4 with <code>+faststart</code> so compressed videos stream instantly.</p></div>
+  </div>
+
+  <h2 id="install">Install</h2>
+  <div class="code">pip install .                 # CLI + desktop GUI<br>
+pip install '.[web]'         # + local web UI (Flask)</div>
+  <p>You need Python 3.9+ and <a href="https://ffmpeg.org/download.html">ffmpeg/ffprobe</a> on your PATH.</p>
+
+  <h2 id="usage">Usage</h2>
+  <div class="code">video-compressor compress input.mp4                    # quality, CRF 23<br>
+video-compressor compress input.mp4 -s 100           # target ~100 MiB<br>
+video-compressor compress input.mp4 -s 64 -p veryslow<br>
+video-compressor compress input.mp4 -c 18 -e nvenc   # hardware encode<br>
+video-compressor web                                 # open the web UI<br>
+video-compressor gui                                 # desktop app</div>
+
+  <h2>Options</h2>
+  <table>
+    <tr><th>Flag</th><th>Meaning</th></tr>
+    <tr><td><code>-s, --size MiB</code></td><td>Target output size (2-pass encode).</td></tr>
+    <tr><td><code>-c, --crf N</code></td><td>Constant Rate Factor: 18 high, 23 good, 28 small.</td></tr>
+    <tr><td><code>-e, --encoder</code></td><td><code>software</code>, <code>nvenc</code>, <code>vaapi</code> or <code>videotoolbox</code>.</td></tr>
+    <tr><td><code>-o, --output FILE</code></td><td>Output path (default: <code>INPUT_compressed.mp4</code>).</td></tr>
+    <tr><td><code>-p, --preset</code></td><td>x264 speed/compression (<code>ultrafast</code> … <code>veryslow</code>).</td></tr>
+    <tr><td><code>-a, --audio-kbps N</code></td><td>Audio bitrate (default 128).</td></tr>
+  </table>
+
+  <h2>How the size math works</h2>
+  <div class="code">total = S × 8 × 1024 ÷ D        # kbps overall<br>
+video = total × 0.95 − audio    # 5% headroom for the container</div>
+
+  <h2>Development</h2>
+  <div class="code">pip install '.[dev]'<br>
+pytest</div>
+  <p>CI runs on Python 3.9 &amp; 3.12. Push a <code>v*</code> tag to build &amp; publish to PyPI and draft a GitHub release automatically.</p>
+</main>
+
+<footer>
+  MIT License · Built on FFmpeg · <a href="https://ronaldbvirinyangwe.github.io/video_compressor">Home</a>
+</footer>
+</body>
+</html>

@@ -31,13 +31,15 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
+    env:
+      HAS_PYPI_TOKEN: ${{ secrets.PYPI_TOKEN }}
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: dist
           path: dist/
       - name: Publish to PyPI (API token)
-        if: secrets.PYPI_TOKEN != ''
+        if: env.HAS_PYPI_TOKEN != ''
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
@@ -45,7 +47,7 @@ jobs:
           pip install twine
           twine upload dist/*
       - name: Publish to PyPI (trusted publishing)
-        if: secrets.PYPI_TOKEN == ''
+        if: env.HAS_PYPI_TOKEN == ''
         uses: pypa/gh-action-pypi-publish@release/v1
 
   release:

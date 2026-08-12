@@ -36,7 +36,16 @@ jobs:
         with:
           name: dist
           path: dist/
-      - name: Publish to PyPI
+      - name: Publish to PyPI (API token)
+        if: secrets.PYPI_TOKEN != ''
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          pip install twine
+          twine upload dist/*
+      - name: Publish to PyPI (trusted publishing)
+        if: secrets.PYPI_TOKEN == ''
         uses: pypa/gh-action-pypi-publish@release/v1
 
   release:

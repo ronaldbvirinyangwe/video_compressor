@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "scales-video-compressor"
-version = "0.1.1"
+version = "0.1.2"
 description = "Compress videos to a target file size (2-pass x264) or target quality (CRF)"
 readme = "README.md"
 requires-python = ">=3.9"

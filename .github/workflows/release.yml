@@ -116,7 +116,7 @@ jobs:
 
       - name: Package (macOS)
         if: runner.os == 'macOS'
-        run: cd dist && zip -qry "../${{ matrix.artifact }}.zip" "Video Compressor.app"
+        run: cd dist && zip -qry "${{ matrix.artifact }}.zip" "Video Compressor.app"
 
       - name: Build (Linux)
         if: runner.os == 'Linux'

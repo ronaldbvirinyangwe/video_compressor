@@ -33,13 +33,40 @@ class CompressError(Exception):
     """A user-facing error (bad input, missing ffmpeg, impossible target...)."""
 
 
+def _resolve_binary(name):
+    """Locate ffmpeg/ffprobe: VC_FFMPEG_DIR > PyInstaller bundle > PATH."""
+    search = []
+    env_dir = os.environ.get("VC_FFMPEG_DIR")
+    if env_dir:
+        search.append(env_dir)
+    bundle = getattr(sys, "_MEIPASS", None)  # one-file extraction dir
+    if bundle:
+        search.append(bundle)
+    if getattr(sys, "frozen", False):  # dir of the packaged executable
+        search.append(os.path.dirname(sys.executable))
+    for d in search:
+        path = os.path.join(d, name)
+        if os.path.isfile(path):
+            return path
+    return shutil.which(name)
+
+
 def check_ffmpeg():
-    missing = [b for b in ("ffmpeg", "ffprobe") if shutil.which(b) is None]
+    missing = [b for b in ("ffmpeg", "ffprobe") if _resolve_binary(b) is None]
     if missing:
         raise CompressError(
-            f"{', '.join(missing)} not found on PATH. "
-            "Install ffmpeg (https://ffmpeg.org/download.html)."
+            f"{', '.join(missing)} not found (searched PATH and the app folder). "
+            "Install ffmpeg (https://ffmpeg.org/download.html) or point "
+            "VC_FFMPEG_DIR at a folder containing ffmpeg/ffprobe."
         )
+
+
+def ffmpeg_path():
+    return _resolve_binary("ffmpeg")
+
+
+def ffprobe_path():
+    return _resolve_binary("ffprobe")
 
 
 def parse_probe(data):
@@ -68,8 +95,10 @@ def parse_probe(data):
 
 def probe(input_path):
     check_ffmpeg()
+def probe(input_path):
+    check_ffmpeg()
     cmd = [
-        "ffprobe", "-v", "error",
+        ffprobe_path(), "-v", "error",
         "-print_format", "json",
         "-show_format", "-show_streams",
         input_path,
@@ -118,7 +147,7 @@ def available_encoders():
     """Return the encoder keys this machine can actually run."""
     check_ffmpeg()
     out = subprocess.run(
-        ["ffmpeg", "-hide_banner", "-encoders"], capture_output=True, text=True
+        [ffmpeg_path(), "-hide_banner", "-encoders"], capture_output=True, text=True
     ).stdout
     got = ["software"]
     for name, spec in ENCODERS.items():
@@ -128,7 +157,7 @@ def available_encoders():
 
 
 def _base_prefix(encoder):
-    cmd = ["ffmpeg", "-hide_banner", "-nostdin", "-y"]
+    cmd = [ffmpeg_path(), "-hide_banner", "-nostdin", "-y"]
     if encoder == "vaapi":
         cmd += ["-vaapi_device", VAAPI_DEVICE]
     return cmd

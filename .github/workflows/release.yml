@@ -1,0 +1,149 @@
+name: Release desktop builds
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: video-compressor-windows-x64
+          - os: macos-latest
+            artifact: video-compressor-macos
+          - os: ubuntu-latest
+            artifact: video-compressor-linux-x64
+    runs-on: ${{ matrix.os }}
+    env:
+      MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+      MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+      KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+      WINDOWS_CERTIFICATE_PWD: ${{ secrets.WINDOWS_CERTIFICATE_PWD }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install package and PyInstaller
+        run: |
+          pip install -e .
+          pip install pyinstaller
+
+      # ---- bundle static ffmpeg so end users need nothing installed ----
+
+      - name: Download static ffmpeg (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          curl.exe -L -o ffmpeg.zip https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/ffmpeg-master-latest-win64-gpl.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg-tmp
+          New-Item -ItemType Directory -Force bin | Out-Null
+          Copy-Item ffmpeg-tmp/*/bin/ffmpeg.exe bin/
+          Copy-Item ffmpeg-tmp/*/bin/ffprobe.exe bin/
+
+      - name: Download static ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          mkdir bin
+          curl -L -o ffmpeg.zip https://evermeet.cx/ffmpeg/get/ffmpeg/zip
+          curl -L -o ffprobe.zip https://evermeet.cx/ffmpeg/get/ffprobe/zip
+          unzip -j ffmpeg.zip ffmpeg -d bin
+          unzip -j ffprobe.zip ffprobe -d bin
+
+      - name: Download static ffmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          curl -L https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz | tar xJ
+          mkdir bin
+          cp ffmpeg-*-static/ffmpeg ffmpeg-*-static/ffprobe bin/
+
+      # ---- build + sign + package per OS ----
+
+      - name: Build, sign, package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          pyinstaller --clean --noconfirm video-compressor.spec
+          Move-Item dist/video-compressor.exe dist/${{ matrix.artifact }}.exe
+          if ($env:WINDOWS_CERTIFICATE) {
+            [IO.File]::WriteAllBytes("cert.pfx", [Convert]::FromBase64String($env:WINDOWS_CERTIFICATE))
+            $signtool = Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+              Where-Object { $_.FullName -match 'x64' } |
+              Select-Object -First 1 -ExpandProperty FullName
+            & $signtool sign /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 `
+              /f cert.pfx /p $env:WINDOWS_CERTIFICATE_PWD "dist/${{ matrix.artifact }}.exe"
+            Remove-Item cert.pfx
+          } else {
+            Write-Host "WINDOWS_CERTIFICATE secret not set — skipping signing."
+          }
+
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
+        run: pyinstaller --clean --noconfirm video-compressor.spec
+
+      - name: Sign & notarize macOS app (optional)
+        if: runner.os == 'macOS' && env.MACOS_CERTIFICATE != ''
+        run: |
+          echo "$MACOS_CERTIFICATE" | base64 --decode > cert.p12
+          security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain || true
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+          security import cert.p12 -k build.keychain -P "$MACOS_CERTIFICATE_PWD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+          IDENTITY=$(security find-identity -v -p codesigning build.keychain \
+            | awk '/Developer ID Application/ {print $2}' | head -n1)
+          codesign --force --deep --options runtime --timestamp \
+            --sign "$IDENTITY" "dist/Video Compressor.app"
+          cd dist && zip -qry ../notarize.zip "Video Compressor.app" && cd ..
+          xcrun notarytool submit notarize.zip \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" --wait
+          xcrun stapler staple "dist/Video Compressor.app"
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: cd dist && zip -qry "../${{ matrix.artifact }}.zip" "Video Compressor.app"
+
+      - name: Build (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          pyinstaller --clean --noconfirm video-compressor.spec
+          mv dist/video-compressor dist/${{ matrix.artifact }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: |
+            dist/*.exe
+            dist/*.zip
+            dist/video-compressor-*
+          if-no-files-found: error
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: dist
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true

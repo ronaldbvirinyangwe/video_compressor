@@ -68,6 +68,44 @@ lands within ~1–2% of the target (muxing overhead matters most at very small s
   size/quality sliders, live progress, download link. Files never leave your machine.
 - **Desktop GUI** (`video-compressor gui`) — native Tkinter window, zero extra deps.
 
+## Desktop app builds
+
+Standalone executables (no Python needed, static ffmpeg bundled) are built
+automatically for Windows, macOS and Linux whenever you push a `v*` tag
+(.github/workflows/release.yml) and attached to the GitHub release.
+
+To build locally:
+
+```bash
+pip install . pyinstaller
+pyinstaller --clean --noconfirm video-compressor.spec   # -> dist/
+```
+
+A local build does **not** bundle ffmpeg — put `ffmpeg`/`ffprobe` in a `bin/`
+folder next to the spec first if you want them bundled. At runtime the app
+finds binaries in this order: `VC_FFMPEG_DIR` env var → bundled folder → PATH.
+
+### Code signing (optional)
+
+The release workflow signs artifacts only when these repo secrets exist:
+
+| Secret | Used for |
+|--------|----------|
+| `MACOS_CERTIFICATE`, `MACOS_CERTIFICATE_PWD` | base64 `.p12` Developer ID cert; signs + notarizes the macOS app |
+| `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID` | notarytool submission (macOS) |
+| `KEYCHAIN_PASSWORD` | any string; throwaway CI keychain password (macOS) |
+| `WINDOWS_CERTIFICATE`, `WINDOWS_CERTIFICATE_PWD` | base64 `.pfx` code-signing cert for signtool |
+
+Without them the builds are unsigned: Windows shows SmartScreen warnings and
+the macOS app needs a right-click → Open on first launch.
+
+### Bundled ffmpeg licensing
+
+Release builds bundle GPL ffmpeg builds (BtbN / evermeet.cx /
+johnvansickle.com), which include libx264. Distributing those binaries makes
+the combined work subject to the GPL for the ffmpeg components; the project's
+own MIT-licensed code is unaffected.
+
 ## Tests
 
 ```bash
